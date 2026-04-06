@@ -3932,10 +3932,17 @@ pub async fn run(
             format!("{context}[{now}] {effective_msg}")
         };
 
-        let mut history = vec![
-            ChatMessage::system(&system_prompt),
-            ChatMessage::user(&enriched),
-        ];
+        // Load session state if provided, otherwise start fresh
+        let mut history = if let Some(path) = session_state_file.as_deref() {
+            let mut loaded = load_interactive_session_history(path, &system_prompt)?;
+            loaded.push(ChatMessage::user(&enriched));
+            loaded
+        } else {
+            vec![
+                ChatMessage::system(&system_prompt),
+                ChatMessage::user(&enriched),
+            ]
+        };
 
         // Prune history for token efficiency (when enabled).
         if config.agent.history_pruning.enabled {
@@ -4044,6 +4051,12 @@ pub async fn run(
                 }
             }
         }
+        
+        // Save session state if provided
+        if let Some(path) = session_state_file.as_deref() {
+            save_interactive_session_history(path, &history)?;
+        }
+        
         final_output = response.clone();
         println!("{response}");
         observer.record_event(&ObserverEvent::TurnComplete);
