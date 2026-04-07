@@ -4051,12 +4051,12 @@ pub async fn run(
                 }
             }
         }
-        
+
         // Save session state if provided
         if let Some(path) = session_state_file.as_deref() {
             save_interactive_session_history(path, &history)?;
         }
-        
+
         final_output = response.clone();
         println!("{response}");
         observer.record_event(&ObserverEvent::TurnComplete);
