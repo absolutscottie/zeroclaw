@@ -28,7 +28,7 @@ This document outlines the plan for integrating Obsidian with ZeroClaw. Obsidian
 
 ## Integration Approaches
 
-Based on research, there are three viable integration approaches:
+Based on research, there are four viable integration approaches:
 
 ### Approach 1: Direct Filesystem Access (Recommended)
 
@@ -84,18 +84,138 @@ Based on research, there are three viable integration approaches:
 
 **Implementation Complexity**: High
 
+### Approach 4: Obsidian CLI (IPC-based) — NEW (February 2026)
+
+**Description**: Use the official Obsidian CLI released in February 2026, which communicates with a running Obsidian instance via IPC (Inter-Process Communication).
+
+**Release Timeline**:
+- Early Access: v1.12.0 (February 10, 2026)
+- General Availability: v1.12.4 (February 27, 2026)
+
+**Pros**:
+- Official, first-party tool backed by Obsidian team
+- Purpose-built for automation and agentic tools
+- Access to plugin features and JavaScript execution
+- Rich command set (read, create, search, tasks, etc.)
+- JSON output format support
+- Built-in TUI with autocomplete
+- No Catalyst license required (GA)
+- Handles content rendering/processing (not raw files)
+- Strong automation/CI-CD focus
+
+**Cons**:
+- Requires Obsidian application to be running
+- IPC limits to local machine only (no remote access)
+- Cannot operate headless (no server deployment)
+- Performance overhead vs. direct filesystem
+- Breaks if Obsidian crashes or is closed
+- Difficult to run multiple concurrent instances
+- Not suitable for CI/CD without GUI environment
+
+**Implementation Complexity**: Low-Medium
+
+**Best Use Cases**:
+- Local automation workflows
+- Development and debugging
+- Agentic tool integration (when Obsidian is running)
+- Interactive operations
+- Plugin development/testing
+
 ## Recommended Approach
 
-**Start with Approach 1 (Direct Filesystem Access)**, then optionally add Approach 2 support in a future iteration.
+**Start with Approach 1 (Direct Filesystem Access) as the primary implementation, with optional future support for Approach 4 (Obsidian CLI).**
 
 ### Rationale
 
 1. **Simplicity**: Filesystem access is simpler and more reliable
 2. **Independence**: No dependency on Obsidian being running or plugins
 3. **Universality**: Works with any Obsidian vault out of the box
-4. **Performance**: Direct file access is faster than HTTP
+4. **Performance**: Direct file access is faster than IPC overhead
 5. **Security**: No network exposure, no API keys to manage
-6. **Incremental**: Can add REST API support later if needed
+6. **Headless Capability**: Works in server/CI environments without GUI
+7. **Incremental**: Can add REST API or CLI support later if needed
+
+### Why Not Approach 4 (CLI) as Primary?
+
+While the official Obsidian CLI is excellent for local automation and development workflows, it has limitations for ZeroClaw:
+
+1. **Running App Requirement**: ZeroClaw agents may need to operate in headless environments (servers, CI/CD) where Obsidian cannot run
+2. **Scalability**: IPC-based approach limits concurrent operations and remote access
+3. **Deployment Flexibility**: Filesystem approach works everywhere; CLI requires Obsidian installation
+4. **Reliability**: Filesystem operations are independent; CLI depends on app stability
+
+### Future Enhancement Path
+
+Once Approach 1 is stable, consider adding Approach 4 support for:
+- Enhanced user workflows (when Obsidian is running locally)
+- Plugin integration capabilities
+- Interactive development scenarios
+- Graceful fallback to filesystem if CLI unavailable
+
+## Comparison Matrix: Access Methods
+
+| Feature | **Filesystem** | **CLI (IPC)** | **REST API** | **Hybrid** |
+|---------|----------------|--------------|--------------|-----------|
+| **Official** | N/A | ✅ Yes | ❌ Third-party | Mixed |
+| **Requires Running App** | ❌ No | ✅ Yes | ✅ Yes | Conditional |
+| **Headless Capable** | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
+| **Plugin Access** | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Setup Complexity** | None | Low | Medium | High |
+| **Performance** | ⚡ Fast | ⚠️ Moderate | ⚠️ Moderate | Variable |
+| **Remote Access** | ❌ No | ❌ No | ✅ Yes | ⚠️ Limited |
+| **CI/CD Friendly** | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
+| **Reliability** | ✅ High | ⚠️ App-dependent | ⚠️ Plugin-dependent | ✅ High |
+| **Implementation Effort** | Low | Low-Medium | Medium | High |
+
+## Technical Comparison: CLI vs. Filesystem
+
+### Obsidian CLI Capabilities (New in v1.12+)
+
+**Supported Commands**:
+- `read` - Read note content
+- `create` - Create new notes
+- `search` - Full-text search with JSON output
+- `daily` - Access daily notes
+- `tasks` - List tasks from notes
+- `diff` - Compare versions
+- `tags` - View tags with frequency
+- `files` - List files with sorting/filtering
+- `unresolved` - Find broken links
+- `eval` - Execute JavaScript against the app
+
+**Key Advantages**:
+- Official API surface maintained by Obsidian team
+- Access to plugin ecosystem and rendered content
+- JavaScript execution for complex operations
+- TUI with autocomplete for interactive use
+- Purpose-designed for automation workflows
+
+**Key Limitations**:
+- IPC-only (no remote access)
+- Requires running Obsidian instance
+- Cannot run in headless/server environments
+- Performance overhead vs. direct file access
+
+### Filesystem Access Capabilities
+
+**Core Operations**:
+- Direct markdown file reading
+- Wikilink and tag parsing
+- Frontmatter extraction
+- Note searching and indexing
+- Path validation and traversal
+
+**Key Advantages**:
+- Works in any environment (servers, CI/CD, headless)
+- No dependencies on Obsidian being installed/running
+- Simple, reliable, fast
+- Complete control over parsing logic
+
+**Key Limitations**:
+- Must implement own parsing (frontmatter, wikilinks, tags)
+- No access to plugin features
+- Raw markdown, not rendered content
+- No JavaScript execution
 
 ## Technical Design
 
@@ -412,32 +532,40 @@ No new heavy dependencies expected.
 
 Post-MVP features to consider:
 
-1. **REST API Plugin Support**
+1. **Obsidian CLI Support (v1.12+)**
+   - Add optional support for official Obsidian CLI
+   - Use when Obsidian is running locally
+   - Graceful fallback to filesystem access if CLI unavailable
+   - Enable plugin integration and JavaScript execution
+   - Support for development/debugging workflows
+
+2. **REST API Plugin Support**
    - Add optional support for Local REST API plugin
    - Graceful fallback to filesystem access
+   - Enable network-based access
 
-2. **Advanced Search**
+3. **Advanced Search**
    - Dataview query support
    - Full-text search with ranking
    - Regex search
 
-3. **Template Support**
+4. **Template Support**
    - Use Obsidian templates for new notes
    - Template variable substitution
 
-4. **Daily Notes**
+5. **Daily Notes**
    - Special handling for daily notes
    - Quick daily note access
 
-5. **Canvas Support**
+6. **Canvas Support**
    - Read Obsidian Canvas files
    - Export canvas as markdown
 
-6. **Sync Detection**
+7. **Sync Detection**
    - Detect when vault is syncing (Obsidian Sync, iCloud, etc.)
    - Wait for sync to complete
 
-7. **Watch Mode**
+8. **Watch Mode**
    - Monitor vault for changes
    - Trigger events on note updates
 
@@ -461,6 +589,8 @@ Post-MVP features to consider:
 ## References
 
 - [Obsidian Official Docs](https://help.obsidian.md/)
+- [Obsidian CLI Documentation](https://obsidian.md/cli) — Official CLI (v1.12+, released February 2026)
+- [Obsidian CLI Help](https://obsidian.md/help/cli) — CLI command reference
 - [Obsidian API Docs](https://docs.obsidian.md/)
 - [Obsidian Plugin API](https://github.com/obsidianmd/obsidian-api)
 - [Local REST API Plugin](https://github.com/coddingtonbear/obsidian-local-rest-api)
@@ -469,9 +599,12 @@ Post-MVP features to consider:
 
 ## Conclusion
 
-The Obsidian integration will provide ZeroClaw agents with powerful knowledge management capabilities. By starting with direct filesystem access, we ensure a simple, reliable foundation that works universally. The phased approach allows for incremental delivery and testing, while the modular design enables future enhancements like REST API support.
+The Obsidian integration will provide ZeroClaw agents with powerful knowledge management capabilities. By starting with direct filesystem access, we ensure a simple, reliable foundation that works universally, including in headless and CI/CD environments. The phased approach allows for incremental delivery and testing, while the modular design enables future enhancements like REST API support or the official Obsidian CLI (released February 2026).
 
-**Total Estimated Effort**: 15-23 hours
+The new Obsidian CLI offers exciting opportunities for local automation workflows and plugin integration, and will be evaluated as a complementary approach in future phases. This hybrid strategy ensures ZeroClaw can serve diverse deployment scenarios—from headless servers to interactive development environments.
+
+**Total Estimated Effort**: 15-23 hours (Phase 1-8)
 **Risk Level**: Low-Medium
 **Priority**: Medium
 **Target Release**: Next minor version
+**Future CLI Enhancement**: Post-MVP phase
